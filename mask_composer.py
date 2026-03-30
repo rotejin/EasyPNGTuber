@@ -24,7 +24,8 @@ from PySide6.QtGui import QPixmap, QShortcut, QKeySequence
 # パスを追加
 sys.path.insert(0, str(Path(__file__).parent))
 
-from aligner import Aligner, AlignConfig
+from multiprocessing import Pool, cpu_count
+from aligner import Aligner, AlignConfig, _align_single_slice
 from compositor import Compositor, CompositeConfig
 from mask_canvas import MaskCanvas
 from preview_widget import PreviewWidget
@@ -96,44 +97,38 @@ class SliceAlignWorker(QThread):
             )
             items.append(base_item)
 
-            # Step 4: Align（各差分ピースを位置合わせ）
-            total_diff = len(slices) - 1
+            # Step 4: Align（並列処理）
+            self.progress.emit(30, "位置合わせ中（並列処理）...")
+
+            # 位置合わせ用の引数リスト作成
+            align_args = []
             for i in range(1, len(slices)):
-                if self.isInterruptionRequested():
-                    self.error.emit("キャンセルされました")
-                    return
-
-                progress_pct = 20 + int(70 * i / total_diff)
-                self.progress.emit(progress_pct, f"位置合わせ中... ({i}/{total_diff})")
-
-                # BGRA→BGRに変換してからalign（アルファチャンネル対応）
                 base_for_align = slices[0]
                 target_for_align = slices[i]
                 if len(base_for_align.shape) == 3 and base_for_align.shape[2] == 4:
                     base_for_align = cv2.cvtColor(base_for_align, cv2.COLOR_BGRA2BGR)
                 if len(target_for_align.shape) == 3 and target_for_align.shape[2] == 4:
                     target_for_align = cv2.cvtColor(target_for_align, cv2.COLOR_BGRA2BGR)
+                align_args.append((i, base_for_align, target_for_align, slices[i], base_size))
 
-                result = self.aligner.align(base_for_align, target_for_align)
+            # multiprocessing で並列実行
+            n_workers = min(len(align_args), max(1, cpu_count() - 1))
+            with Pool(processes=n_workers) as pool:
+                results = pool.map(_align_single_slice, align_args)
 
-                item = SliceItem(index=i, image=slices[i])
-
-                if result['matrix'] is not None:
-                    aligned, valid_mask = self.aligner.apply_transform_with_mask(
-                        slices[i], result['matrix'], base_size
-                    )
-                    item.aligned_image = aligned
-                    item.valid_mask = valid_mask
-                    item.alignment_success = bool(result['success'])
-                    item.alignment_score = result['score']
-                else:
-                    # 行列推定失敗時は元画像を保持
-                    item.aligned_image = slices[i].copy()
-                    item.valid_mask = np.full(slices[i].shape[:2], 255, dtype=np.uint8)
-                    item.alignment_success = False
-                    item.alignment_score = result.get('score', 0.0)
-
+            # 結果をSliceItemに変換
+            for r in results:
+                item = SliceItem(
+                    index=r['index'],
+                    image=slices[r['index']],
+                    aligned_image=r['aligned_image'],
+                    valid_mask=r['valid_mask'],
+                    alignment_success=r['success'],
+                    alignment_score=r['score'],
+                )
                 items.append(item)
+
+            self.progress.emit(95, "並列処理完了")
 
             self.progress.emit(100, "完了")
             self.finished.emit((self.job_id, items))
