@@ -246,6 +246,7 @@ class MaskCanvas(QWidget):
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation
         )
+        scaled_pixmap.setDevicePixelRatio(self.screen().devicePixelRatio() if self.screen() else 1.0)
         painter.drawPixmap(0, 0, scaled_pixmap)
 
         # マスクオーバーレイを描画
@@ -298,6 +299,8 @@ class MaskCanvas(QWidget):
             Qt.SmoothTransformation
         )
         
+        scaled_pixmap.setDevicePixelRatio(self.screen().devicePixelRatio() if self.screen() else 1.0)
+
         return scaled_pixmap
 
     def mousePressEvent(self, event):

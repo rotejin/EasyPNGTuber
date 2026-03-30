@@ -184,16 +184,20 @@ class PreviewWidget(QWidget):
             return
         
         # スケール適用
-        if self.scale != 1.0:
+        # Apply scale and device pixel ratio for HiDPI displays
+        dpr = self._device_pixel_ratio()
+        effective_scale = self.scale * dpr
+        if effective_scale != 1.0:
             h, w = display.shape[:2]
-            new_w = int(w * self.scale)
-            new_h = int(h * self.scale)
+            new_w = max(1, int(w * effective_scale))
+            new_h = max(1, int(h * effective_scale))
             display = cv2.resize(display, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
         
         # QImageに変換
         try:
             qimage = convert_to_qimage(display)
             pixmap = QPixmap.fromImage(qimage)
+            pixmap.setDevicePixelRatio(dpr)
             self.label.setPixmap(pixmap)
         except Exception as e:
             print(f"Display error: {e}")
@@ -381,6 +385,13 @@ class PreviewWidget(QWidget):
             # ブラシモード
             self.mouse_released.emit(img_x, img_y)
     
+    def _device_pixel_ratio(self) -> float:
+        """Get the device pixel ratio for HiDPI support."""
+        screen = self.screen()
+        if screen is not None:
+            return screen.devicePixelRatio()
+        return 1.0
+
     def wheelEvent(self, event):
         """ホイールイベント（ズーム）"""
         delta = event.angleDelta().y()
