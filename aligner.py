@@ -340,3 +340,38 @@ class Aligner:
         )
 
         return transformed, valid_mask
+
+
+def _align_single_slice(args: tuple) -> dict:
+    """Process a single slice alignment (for multiprocessing).
+
+    Args:
+        args: (index, base_bgr, target_bgr, target_bgra, base_size)
+
+    Returns:
+        dict with index, aligned_image, valid_mask, success, score
+    """
+    index, base_bgr, target_bgr, target_bgra, base_size = args
+    aligner = Aligner(AlignConfig())
+
+    result = aligner.align(base_bgr, target_bgr)
+
+    if result['matrix'] is not None:
+        aligned, valid_mask = aligner.apply_transform_with_mask(
+            target_bgra, result['matrix'], base_size
+        )
+        return {
+            'index': index,
+            'aligned_image': aligned,
+            'valid_mask': valid_mask,
+            'success': bool(result['success']),
+            'score': result['score'],
+        }
+    else:
+        return {
+            'index': index,
+            'aligned_image': target_bgra.copy(),
+            'valid_mask': np.full(target_bgra.shape[:2], 255, dtype=np.uint8),
+            'success': False,
+            'score': result.get('score', 0.0),
+        }
