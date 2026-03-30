@@ -337,12 +337,12 @@ class MaskComposerWindow(QMainWindow):
         # Undo/Redoボタン
         undo_redo_layout = QHBoxLayout()
         self.btn_undo = QPushButton('戻す')
-        self.btn_undo.setToolTip('Ctrl+Z')
+        self.btn_undo.setToolTip(QKeySequence(QKeySequence.StandardKey.Undo).toString(QKeySequence.SequenceFormat.NativeText))
         self.btn_undo.clicked.connect(self._on_undo)
         undo_redo_layout.addWidget(self.btn_undo)
 
         self.btn_redo = QPushButton('やり直し')
-        self.btn_redo.setToolTip('Ctrl+Y')
+        self.btn_redo.setToolTip(QKeySequence(QKeySequence.StandardKey.Redo).toString(QKeySequence.SequenceFormat.NativeText))
         self.btn_redo.clicked.connect(self._on_redo)
         undo_redo_layout.addWidget(self.btn_redo)
         brush_layout.addLayout(undo_redo_layout)
